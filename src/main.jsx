@@ -132,6 +132,8 @@ function App() {
     typeof window !== "undefined" && localStorage.getItem("toolkit_unlocked") === "yes"
   );
   const [pwInput, setPwInput] = useState("");
+  const [authChecking, setAuthChecking] = useState(false);
+  const [authError, setAuthError] = useState("");
 
   const toggleActivity = (a) => {
     setActivities(prev => prev.includes(a) ? prev.filter(x => x !== a) : [...prev, a]);
@@ -282,35 +284,79 @@ WRITING RULES:
           <input
             type="password"
             value={pwInput}
-            onChange={(e) => setPwInput(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === "Enter" && pwInput.trim()) {
-                localStorage.setItem("toolkit_password", pwInput.trim());
-                localStorage.setItem("toolkit_unlocked", "yes");
-                setUnlocked(true);
+            disabled={authChecking}
+            onChange={(e) => { setPwInput(e.target.value); setAuthError(""); }}
+            onKeyDown={async (e) => {
+              if (e.key === "Enter" && pwInput.trim() && !authChecking) {
+                setAuthChecking(true);
+                setAuthError("");
+                try {
+                  const r = await fetch("/api/auth", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ password: pwInput.trim() }),
+                  });
+                  if (r.ok) {
+                    localStorage.setItem("toolkit_password", pwInput.trim());
+                    localStorage.setItem("toolkit_unlocked", "yes");
+                    setUnlocked(true);
+                  } else {
+                    setAuthError("Incorrect password. Try again.");
+                  }
+                } catch (err) {
+                  setAuthError("Connection error. Try again.");
+                } finally {
+                  setAuthChecking(false);
+                }
               }
             }}
             placeholder="Access password"
             style={{
               width: "100%", boxSizing: "border-box", padding: "13px 16px",
-              background: "rgba(255,255,255,0.07)", border: "1px solid rgba(255,255,255,0.2)",
-              borderRadius: 8, color: "#fff", fontSize: 15, outline: "none", marginBottom: 16,
+              background: "rgba(255,255,255,0.07)",
+              border: `1px solid ${authError ? "rgba(255,80,80,0.5)" : "rgba(255,255,255,0.2)"}`,
+              borderRadius: 8, color: "#fff", fontSize: 15, outline: "none", marginBottom: authError ? 8 : 16,
+              opacity: authChecking ? 0.6 : 1,
             }}
           />
+          {authError && (
+            <div style={{ color: "#ff9090", fontSize: 12, marginBottom: 16, textAlign: "left" }}>
+              ⚠ {authError}
+            </div>
+          )}
           <button
-            onClick={() => {
-              if (pwInput.trim()) {
-                localStorage.setItem("toolkit_password", pwInput.trim());
-                localStorage.setItem("toolkit_unlocked", "yes");
-                setUnlocked(true);
+            disabled={authChecking || !pwInput.trim()}
+            onClick={async () => {
+              if (!pwInput.trim() || authChecking) return;
+              setAuthChecking(true);
+              setAuthError("");
+              try {
+                const r = await fetch("/api/auth", {
+                  method: "POST",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({ password: pwInput.trim() }),
+                });
+                if (r.ok) {
+                  localStorage.setItem("toolkit_password", pwInput.trim());
+                  localStorage.setItem("toolkit_unlocked", "yes");
+                  setUnlocked(true);
+                } else {
+                  setAuthError("Incorrect password. Try again.");
+                }
+              } catch (err) {
+                setAuthError("Connection error. Try again.");
+              } finally {
+                setAuthChecking(false);
               }
             }}
             style={{
-              width: "100%", padding: 14, background: "#C9A84C", color: "#08111e",
+              width: "100%", padding: 14,
+              background: authChecking ? "rgba(201,168,76,0.5)" : "#C9A84C",
+              color: "#08111e",
               border: "none", borderRadius: 8, fontWeight: 900, fontSize: 14,
-              letterSpacing: 2, cursor: "pointer", textTransform: "uppercase",
+              letterSpacing: 2, cursor: authChecking ? "wait" : "pointer", textTransform: "uppercase",
             }}
-          >Unlock Tool</button>
+          >{authChecking ? "Checking..." : "Unlock Tool"}</button>
           <div style={{ color: "rgba(255,255,255,0.3)", fontSize: 12, marginTop: 20, lineHeight: 1.5 }}>Not a subscriber yet? Visit brrteaching.com to join.</div>
         </div>
       </div>
