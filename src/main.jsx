@@ -128,6 +128,10 @@ function App() {
   const [result, setResult] = useState("");
   const [error, setError] = useState("");
   const [copied, setCopied] = useState(false);
+  const [unlocked, setUnlocked] = useState(
+    typeof window !== "undefined" && localStorage.getItem("toolkit_unlocked") === "yes"
+  );
+  const [pwInput, setPwInput] = useState("");
 
   const toggleActivity = (a) => {
     setActivities(prev => prev.includes(a) ? prev.filter(x => x !== a) : [...prev, a]);
@@ -223,10 +227,20 @@ WRITING RULES:
           model: "claude-haiku-4-5-20251001",
           max_tokens: 1500,
           messages: [{ role: "user", content: buildPrompt() }],
+          toolkitPassword: localStorage.getItem("toolkit_password") || "",
         }),
       });
       const json = await res.json();
-      if (json.error) { setError("Error: " + json.error.message); return; }
+      if (json.error) {
+        if (json.error.code === "AUTH_REQUIRED") {
+          localStorage.removeItem("toolkit_unlocked");
+          localStorage.removeItem("toolkit_password");
+          setUnlocked(false);
+          setError("That password is no longer valid. Please re-enter.");
+          return;
+        }
+        setError("Error: " + json.error.message); return;
+      }
       const text = (json.content || []).filter(b => b.type === "text").map(b => b.text).join("");
       if (!text) { setError("Nothing returned. Try again."); return; }
       setResult(text);
@@ -244,6 +258,63 @@ WRITING RULES:
   };
 
   return (
+   <>
+    {!unlocked && (
+      <div style={{
+        position: "fixed", inset: 0, zIndex: 9999,
+        background: "linear-gradient(160deg, #08111e 0%, #0d1f3c 100%)",
+        display: "flex", alignItems: "center", justifyContent: "center",
+        fontFamily: "'DM Sans', system-ui, sans-serif", padding: 20,
+      }}>
+        <div style={{
+          maxWidth: 380, width: "100%", textAlign: "center",
+          background: "rgba(255,255,255,0.04)", border: "1px solid rgba(201,168,76,0.25)",
+          borderRadius: 12, padding: "40px 32px",
+        }}>
+          <div style={{
+            display: "inline-block", border: "1px solid #C9A84C", color: "#C9A84C",
+            fontSize: 10, letterSpacing: 4, padding: "4px 14px", marginBottom: 20,
+            fontWeight: 700, borderRadius: 2, textTransform: "uppercase",
+            fontFamily: "monospace",
+          }}>4THDMC | EVOLVE LLC</div>
+          <div style={{ fontFamily: "Georgia, serif", fontSize: 26, fontWeight: 900, color: "#fff", marginBottom: 10 }}>Sub Plan Generator</div>
+          <div style={{ color: "rgba(255,255,255,0.5)", fontSize: 14, marginBottom: 28, lineHeight: 1.5 }}>Enter your access password to continue.</div>
+          <input
+            type="password"
+            value={pwInput}
+            onChange={(e) => setPwInput(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" && pwInput.trim()) {
+                localStorage.setItem("toolkit_password", pwInput.trim());
+                localStorage.setItem("toolkit_unlocked", "yes");
+                setUnlocked(true);
+              }
+            }}
+            placeholder="Access password"
+            style={{
+              width: "100%", boxSizing: "border-box", padding: "13px 16px",
+              background: "rgba(255,255,255,0.07)", border: "1px solid rgba(255,255,255,0.2)",
+              borderRadius: 8, color: "#fff", fontSize: 15, outline: "none", marginBottom: 16,
+            }}
+          />
+          <button
+            onClick={() => {
+              if (pwInput.trim()) {
+                localStorage.setItem("toolkit_password", pwInput.trim());
+                localStorage.setItem("toolkit_unlocked", "yes");
+                setUnlocked(true);
+              }
+            }}
+            style={{
+              width: "100%", padding: 14, background: "#C9A84C", color: "#08111e",
+              border: "none", borderRadius: 8, fontWeight: 900, fontSize: 14,
+              letterSpacing: 2, cursor: "pointer", textTransform: "uppercase",
+            }}
+          >Unlock Tool</button>
+          <div style={{ color: "rgba(255,255,255,0.3)", fontSize: 12, marginTop: 20, lineHeight: 1.5 }}>Not a subscriber yet? Visit brrteaching.com to join.</div>
+        </div>
+      </div>
+    )}
     <div style={{ minHeight: "100vh", background: `linear-gradient(160deg, ${DARK} 0%, ${NAVY} 100%)`, fontFamily: "'Segoe UI', system-ui, sans-serif", padding: "0 0 80px" }}>
 
       {/* NAV */}
@@ -476,6 +547,7 @@ WRITING RULES:
         <div style={{ marginTop: 6, fontSize: 9, letterSpacing: 2, color: "rgba(255,255,255,0.12)" }}>Brandon Russell · The Multiplier · Chattanooga, TN</div>
       </div>
     </div>
+   </>
   );
 }
 
